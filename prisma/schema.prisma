@@ -13,6 +13,7 @@ enum DealStatus { OPEN WON LOST }
 enum WorkflowStatus { DRAFT ACTIVE PAUSED ARCHIVED }
 enum RunStatus { QUEUED RUNNING SUCCEEDED FAILED CANCELLED }
 enum AgentType { SALES SUPPORT OPERATIONS FINANCE MARKETING CUSTOM }
+enum JobStatus { QUEUED RUNNING SUCCEEDED FAILED DEAD_LETTER }
 
 model Organization {
   id          String        @id @default(cuid())
@@ -24,6 +25,7 @@ model Organization {
   pipelines   Pipeline[]
   workflows   Workflow[]
   agents      Agent[]
+  jobs        Job[]
   auditEvents AuditEvent[]
 }
 
@@ -189,19 +191,43 @@ model Agent {
 }
 
 model AgentRun {
-  id         String    @id @default(cuid())
-  agentId    String
+  id            String    @id @default(cuid())
+  agentId       String
   workflowRunId String?
-  status     RunStatus @default(QUEUED)
-  input      Json?
-  output     Json?
-  error      String?
-  startedAt  DateTime?
-  finishedAt DateTime?
-  createdAt  DateTime  @default(now())
-  agent      Agent     @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  status        RunStatus @default(QUEUED)
+  input         Json?
+  output        Json?
+  error         String?
+  startedAt     DateTime?
+  finishedAt    DateTime?
+  createdAt     DateTime  @default(now())
+  agent         Agent     @relation(fields: [agentId], references: [id], onDelete: Cascade)
   @@index([agentId, status])
   @@index([workflowRunId])
+}
+
+model Job {
+  id             String    @id @default(cuid())
+  organizationId String
+  type           String
+  payload        Json
+  status         JobStatus @default(QUEUED)
+  idempotencyKey String
+  attempts       Int       @default(0)
+  maxAttempts    Int       @default(5)
+  availableAt    DateTime  @default(now())
+  leaseUntil     DateTime?
+  leasedBy       String?
+  lastError      String?
+  result         Json?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  completedAt    DateTime?
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  @@unique([organizationId, idempotencyKey])
+  @@index([status, availableAt])
+  @@index([leaseUntil])
+  @@index([organizationId, createdAt])
 }
 
 model AuditEvent {
