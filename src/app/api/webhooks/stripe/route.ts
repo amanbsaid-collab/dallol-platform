@@ -1,7 +1,13 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { db } from "@/lib/db";
+import type { Prisma } from "@prisma/client";
 
 export const runtime = "nodejs";
+
+function toJsonValue(value: unknown): Prisma.InputJsonValue {
+  if (value === undefined) return null;
+  return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
+}
 
 function verifyStripeSignature(payload: string, signature: string, secret: string) {
   const parts = signature.split(",");
@@ -33,7 +39,7 @@ export async function POST(request: Request) {
   try {
     const existing = await db.paymentEvent.findUnique({ where: { provider_providerEventId: { provider: "stripe", providerEventId: event.id } } });
     if (!existing) {
-      await db.paymentEvent.create({ data: { organizationId, provider: "stripe", providerEventId: event.id, eventType: event.type, payload: event } });
+      await db.paymentEvent.create({ data: { organizationId, provider: "stripe", providerEventId: event.id, eventType: event.type, payload: toJsonValue(event) } });
     }
   } catch { return Response.json({ error: "Persistence failed" }, { status: 500 }); }
   return Response.json({ received: true, eventId: event.id });
