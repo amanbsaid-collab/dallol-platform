@@ -31,12 +31,10 @@ export async function POST(request: Request) {
   if (!organizationId) return Response.json({ error: "Missing organization_id metadata" }, { status: 422 });
 
   try {
-    await db.auditEvent.create({
-      data: { organizationId, action: `stripe.${event.type}`, entityType: "StripeEvent", entityId: event.id, metadata: event },
-    });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown persistence error";
-    if (!message.toLowerCase().includes("unique")) return Response.json({ error: "Persistence failed" }, { status: 500 });
-  }
+    const existing = await db.paymentEvent.findUnique({ where: { provider_providerEventId: { provider: "stripe", providerEventId: event.id } } });
+    if (!existing) {
+      await db.paymentEvent.create({ data: { organizationId, provider: "stripe", providerEventId: event.id, eventType: event.type, payload: event } });
+    }
+  } catch { return Response.json({ error: "Persistence failed" }, { status: 500 }); }
   return Response.json({ received: true, eventId: event.id });
 }
