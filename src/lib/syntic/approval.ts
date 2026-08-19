@@ -1,9 +1,10 @@
 import { db } from '@/lib/db';
+import { Prisma } from '@prisma/client';
 
 export type ApprovalDecision = 'APPROVE' | 'REJECT';
 
-function toJsonValue(value: unknown): Record<string, unknown> {
-  return JSON.parse(JSON.stringify(value ?? {})) as Record<string, unknown>;
+function toJsonValue(value: unknown): Prisma.InputJsonValue {
+  return JSON.parse(JSON.stringify(value ?? {})) as Prisma.InputJsonValue;
 }
 
 export async function createApprovalRequest(input: {
@@ -18,11 +19,11 @@ export async function createApprovalRequest(input: {
       userId: input.userId,
       action: 'syntic.approval_requested',
       entityType: 'SynticApproval',
-      metadata: {
+      metadata: toJsonValue({
         status: 'PENDING',
         task: input.task,
         proposedMutation: toJsonValue(input.proposedMutation),
-      },
+      }),
     },
   });
 }
