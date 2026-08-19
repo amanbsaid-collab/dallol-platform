@@ -1,5 +1,6 @@
 import { db } from '@/lib/db';
 import { writeAuditEvent } from '@/lib/audit';
+import type { Prisma } from '@prisma/client';
 
 type WorkflowNode = {
   id?: string;
@@ -10,6 +11,11 @@ type WorkflowNode = {
 type WorkflowDefinition = {
   nodes?: WorkflowNode[];
 };
+
+function toJsonValue(value: unknown): Prisma.InputJsonValue {
+  if (value === undefined) return null;
+  return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
+}
 
 function getPath(input: unknown, path: string): unknown {
   return path.split('.').reduce<unknown>((value, key) => {
@@ -37,17 +43,17 @@ export async function executeWorkflow(workflowId: string, input: unknown) {
   if (workflow.status !== 'ACTIVE') throw new Error('WORKFLOW_NOT_ACTIVE');
 
   const run = await db.workflowRun.create({
-    data: { workflowId, status: 'RUNNING', input: input as object },
+    data: { workflowId, status: 'RUNNING', input: toJsonValue(input) },
   });
 
   try {
     const definition = workflow.definition as WorkflowDefinition;
     const nodes = definition.nodes ?? [];
-    const results: unknown[] = [];
+    const results: Prisma.InputJsonValue[] = [];
 
     for (const node of nodes) {
       if (node.type === 'condition' && !conditionMatches(node.config ?? {}, input)) {
-        results.push({ nodeId: node.id, skipped: true, reason: 'condition_failed' });
+        results.push(toJsonValue({ nodeId: node.id, skipped: true, reason: 'condition_failed' }));
         continue;
       }
 
@@ -57,17 +63,17 @@ export async function executeWorkflow(workflowId: string, input: unknown) {
         const agent = await db.agent.findFirst({ where: { id: agentId, organizationId: workflow.organizationId, enabled: true } });
         if (!agent) throw new Error('AGENT_NOT_AVAILABLE');
         const agentRun = await db.agentRun.create({
-          data: { agentId: agent.id, workflowRunId: run.id, status: 'SUCCEEDED', input: input as object, output: { accepted: true, agentType: agent.type } },
+          data: { agentId: agent.id, workflowRunId: run.id, status: 'SUCCEEDED', input: toJsonValue(input), output: toJsonValue({ accepted: true, agentType: agent.type }) },
         });
-        results.push({ nodeId: node.id, agentRunId: agentRun.id, status: 'SUCCEEDED' });
+        results.push(toJsonValue({ nodeId: node.id, agentRunId: agentRun.id, status: 'SUCCEEDED' }));
         continue;
       }
 
-      results.push({ nodeId: node.id, status: node.type === 'action' ? 'accepted' : 'completed' });
+      results.push(toJsonValue({ nodeId: node.id, status: node.type === 'action' ? 'accepted' : 'completed' }));
     }
 
     const output = { results };
-    await db.workflowRun.update({ where: { id: run.id }, data: { status: 'SUCCEEDED', output, finishedAt: new Date() } });
+    await db.workflowRun.update({ where: { id: run.id }, data: { status: 'SUCCEEDED', output: toJsonValue(output), finishedAt: new Date() } });
     await writeAuditEvent({ organizationId: workflow.organizationId, action: 'workflow.executed', entityType: 'WorkflowRun', entityId: run.id, metadata: { workflowId } });
     return { runId: run.id, status: 'SUCCEEDED', output };
   } catch (error) {
