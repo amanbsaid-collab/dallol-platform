@@ -1,7 +1,8 @@
 import { db } from '@/lib/db';
+import { Prisma } from '@prisma/client';
 
-function toJsonValue(value: unknown): Record<string, unknown> {
-  return JSON.parse(JSON.stringify(value ?? {})) as Record<string, unknown>;
+function toJsonValue(value: unknown): Prisma.InputJsonValue {
+  return JSON.parse(JSON.stringify(value ?? {})) as Prisma.InputJsonValue;
 }
 
 export async function getAgentExecutionHistory(organizationId: string, agentId: string, limit = 10) {
@@ -22,7 +23,7 @@ export async function recordAgentMemory(organizationId: string, agentId: string,
       action: 'syntic.memory_recorded',
       entityType: 'Agent',
       entityId: agentId,
-      metadata: { memory: toJsonValue(memory) },
+      metadata: toJsonValue({ memory: toJsonValue(memory) }),
     },
   });
 }
