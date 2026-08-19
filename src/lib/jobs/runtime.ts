@@ -1,4 +1,9 @@
 import { db } from '@/lib/db';
+import { db } from '@/lib/db';
+import type { Prisma } from '@prisma/client';
+return db.$transaction(async (tx) => {return db.$transaction(async (tx: Prisma.TransactionClient) => {main-Dallol-1stfix: type Prisma transaction client in job runtime
+                              
+  
 
 const LEASE_MS = 60_000;
 const MAX_ATTEMPTS = 5;
