@@ -1,6 +1,5 @@
 import { db } from '@/lib/db';
 import { writeAuditEvent } from '@/lib/audit';
-import { Prisma } from '@prisma/client';
 
 type WorkflowNode = {
   id?: string;
@@ -12,9 +11,8 @@ type WorkflowDefinition = {
   nodes?: WorkflowNode[];
 };
 
-function toJsonValue(value: unknown): Prisma.InputJsonValue | typeof Prisma.JsonNull {
-  if (value === null || value === undefined) return Prisma.JsonNull;
-  return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
+function toJsonValue(value: unknown): Record<string, unknown> {
+  return JSON.parse(JSON.stringify(value ?? {})) as Record<string, unknown>;
 }
 
 function getPath(input: unknown, path: string): unknown {
@@ -49,7 +47,7 @@ export async function executeWorkflow(workflowId: string, input: unknown) {
   try {
     const definition = workflow.definition as WorkflowDefinition;
     const nodes = definition.nodes ?? [];
-    const results: Prisma.InputJsonValue[] = [];
+    const results: Record<string, unknown>[] = [];
 
     for (const node of nodes) {
       if (node.type === 'condition' && !conditionMatches(node.config ?? {}, input)) {
