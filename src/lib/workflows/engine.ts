@@ -1,5 +1,6 @@
 import { db } from '@/lib/db';
 import { writeAuditEvent } from '@/lib/audit';
+import { Prisma } from '@prisma/client';
 
 type WorkflowNode = {
   id?: string;
@@ -11,8 +12,8 @@ type WorkflowDefinition = {
   nodes?: WorkflowNode[];
 };
 
-function toJsonValue(value: unknown): Record<string, unknown> {
-  return JSON.parse(JSON.stringify(value ?? {})) as Record<string, unknown>;
+function toJsonValue(value: unknown): Prisma.InputJsonValue {
+  return JSON.parse(JSON.stringify(value ?? {})) as Prisma.InputJsonValue;
 }
 
 function getPath(input: unknown, path: string): unknown {
@@ -47,7 +48,7 @@ export async function executeWorkflow(workflowId: string, input: unknown) {
   try {
     const definition = workflow.definition as WorkflowDefinition;
     const nodes = definition.nodes ?? [];
-    const results: Record<string, unknown>[] = [];
+    const results: Prisma.InputJsonValue[] = [];
 
     for (const node of nodes) {
       if (node.type === 'condition' && !conditionMatches(node.config ?? {}, input)) {
@@ -61,7 +62,13 @@ export async function executeWorkflow(workflowId: string, input: unknown) {
         const agent = await db.agent.findFirst({ where: { id: agentId, organizationId: workflow.organizationId, enabled: true } });
         if (!agent) throw new Error('AGENT_NOT_AVAILABLE');
         const agentRun = await db.agentRun.create({
-          data: { agentId: agent.id, workflowRunId: run.id, status: 'SUCCEEDED', input: toJsonValue(input), output: toJsonValue({ accepted: true, agentType: agent.type }) },
+          data: {
+            agentId: agent.id,
+            workflowRunId: run.id,
+            status: 'SUCCEEDED',
+            input: toJsonValue(input),
+            output: toJsonValue({ accepted: true, agentType: agent.type }),
+          },
         });
         results.push(toJsonValue({ nodeId: node.id, agentRunId: agentRun.id, status: 'SUCCEEDED' }));
         continue;
@@ -70,14 +77,14 @@ export async function executeWorkflow(workflowId: string, input: unknown) {
       results.push(toJsonValue({ nodeId: node.id, status: node.type === 'action' ? 'accepted' : 'completed' }));
     }
 
-    const output = { results };
-    await db.workflowRun.update({ where: { id: run.id }, data: { status: 'SUCCEEDED', output: toJsonValue(output), finishedAt: new Date() } });
-    await writeAuditEvent({ organizationId: workflow.organizationId, action: 'workflow.executed', entityType: 'WorkflowRun', entityId: run.id, metadata: { workflowId } });
+    const output = toJsonValue({ results });
+    await db.workflowRun.update({ where: { id: run.id }, data: { status: 'SUCCEEDED', output, finishedAt: new Date() } });
+    await writeAuditEvent({ organizationId: workflow.organizationId, action: 'workflow.executed', entityType: 'WorkflowRun', entityId: run.id, metadata: toJsonValue({ workflowId }) });
     return { runId: run.id, status: 'SUCCEEDED', output };
   } catch (error) {
     const message = error instanceof Error ? error.message : 'WORKFLOW_EXECUTION_FAILED';
     await db.workflowRun.update({ where: { id: run.id }, data: { status: 'FAILED', error: message, finishedAt: new Date() } });
-    await writeAuditEvent({ organizationId: workflow.organizationId, action: 'workflow.failed', entityType: 'WorkflowRun', entityId: run.id, metadata: { workflowId, error: message } });
+    await writeAuditEvent({ organizationId: workflow.organizationId, action: 'workflow.failed', entityType: 'WorkflowRun', entityId: run.id, metadata: toJsonValue({ workflowId, error: message }) });
     throw error;
   }
 }
