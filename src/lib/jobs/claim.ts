@@ -1,11 +1,12 @@
 import { db } from '@/lib/db';
+import type { Prisma } from '@prisma/client';
 
 const LEASE_MS = 60_000;
 
 export async function claimNextJob(workerId: string) {
   const now = new Date();
   const leaseUntil = new Date(now.getTime() + LEASE_MS);
-  return db.$transaction(async (tx) => {
+  return db.$transaction(async (tx: Prisma.TransactionClient) => {
     const candidate = await tx.job.findFirst({
       where: { OR: [{ status: 'QUEUED', availableAt: { lte: now } }, { status: 'FAILED', availableAt: { lte: now } }, { status: 'RUNNING', leaseUntil: { lt: now } }] },
       orderBy: { createdAt: 'asc' },
