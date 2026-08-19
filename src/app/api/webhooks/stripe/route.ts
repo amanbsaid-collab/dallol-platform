@@ -1,12 +1,10 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { db } from "@/lib/db";
-import { Prisma } from "@prisma/client";
 
 export const runtime = "nodejs";
 
-function toJsonValue(value: unknown): Prisma.InputJsonValue | typeof Prisma.JsonNull {
-  if (value === null || value === undefined) return Prisma.JsonNull;
-  return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
+function toJsonValue(value: unknown): Record<string, unknown> {
+  return JSON.parse(JSON.stringify(value ?? {})) as Record<string, unknown>;
 }
 
 function verifyStripeSignature(payload: string, signature: string, secret: string) {
