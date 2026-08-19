@@ -1,4 +1,10 @@
 import { db } from '@/lib/db';
+import type { Prisma } from '@prisma/client';
+
+function toJsonValue(value: unknown): Prisma.InputJsonValue {
+  if (value === undefined) return null;
+  return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
+}
 
 export async function getAgentExecutionHistory(organizationId: string, agentId: string, limit = 10) {
   return db.agentRun.findMany({
@@ -18,7 +24,7 @@ export async function recordAgentMemory(organizationId: string, agentId: string,
       action: 'syntic.memory_recorded',
       entityType: 'Agent',
       entityId: agentId,
-      metadata: { memory },
+      metadata: { memory: toJsonValue(memory) },
     },
   });
 }
