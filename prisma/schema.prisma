@@ -1,0 +1,246 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum MembershipRole { OWNER ADMIN MEMBER }
+enum ContactStatus { LEAD QUALIFIED CUSTOMER LOST }
+enum DealStatus { OPEN WON LOST }
+enum WorkflowStatus { DRAFT ACTIVE PAUSED ARCHIVED }
+enum RunStatus { QUEUED RUNNING SUCCEEDED FAILED CANCELLED }
+enum AgentType { SALES SUPPORT OPERATIONS FINANCE MARKETING CUSTOM }
+enum JobStatus { QUEUED RUNNING SUCCEEDED FAILED DEAD_LETTER }
+
+model Organization {
+  id          String        @id @default(cuid())
+  name        String
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  memberships Membership[]
+  contacts    Contact[]
+  pipelines   Pipeline[]
+  workflows   Workflow[]
+  agents      Agent[]
+  jobs        Job[]
+  auditEvents AuditEvent[]
+}
+
+model User {
+  id            String        @id @default(cuid())
+  email         String        @unique
+  name          String?
+  image         String?
+  passwordHash  String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  memberships   Membership[]
+  sessions      Session[]
+  accounts      Account[]
+  auditEvents   AuditEvent[]
+}
+
+model Membership {
+  id             String         @id @default(cuid())
+  userId         String
+  organizationId String
+  role           MembershipRole @default(MEMBER)
+  createdAt      DateTime       @default(now())
+  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  @@unique([userId, organizationId])
+  @@index([organizationId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([userId])
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+  @@unique([identifier, token])
+}
+
+model Contact {
+  id             String         @id @default(cuid())
+  organizationId String
+  firstName      String
+  lastName       String?
+  email          String?
+  phone          String?
+  company        String?
+  status         ContactStatus  @default(LEAD)
+  metadata       Json?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  deals          Deal[]
+  @@index([organizationId, status])
+  @@index([organizationId, email])
+}
+
+model Pipeline {
+  id             String         @id @default(cuid())
+  organizationId String
+  name           String
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  stages         PipelineStage[]
+  deals          Deal[]
+  @@index([organizationId])
+}
+
+model PipelineStage {
+  id         String   @id @default(cuid())
+  pipelineId String
+  name       String
+  position   Int
+  createdAt  DateTime @default(now())
+  pipeline   Pipeline @relation(fields: [pipelineId], references: [id], onDelete: Cascade)
+  deals      Deal[]
+  @@unique([pipelineId, position])
+}
+
+model Deal {
+  id         String     @id @default(cuid())
+  contactId  String
+  pipelineId String
+  stageId    String
+  name       String
+  valueCents Int        @default(0)
+  status     DealStatus @default(OPEN)
+  metadata   Json?
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+  contact    Contact    @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  pipeline   Pipeline   @relation(fields: [pipelineId], references: [id], onDelete: Cascade)
+  stage      PipelineStage @relation(fields: [stageId], references: [id], onDelete: Cascade)
+  @@index([pipelineId, stageId, status])
+}
+
+model Workflow {
+  id             String         @id @default(cuid())
+  organizationId String
+  name           String
+  description    String?
+  status         WorkflowStatus @default(DRAFT)
+  definition     Json
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  runs           WorkflowRun[]
+  @@index([organizationId, status])
+}
+
+model WorkflowRun {
+  id         String     @id @default(cuid())
+  workflowId String
+  status     RunStatus  @default(QUEUED)
+  input      Json?
+  output     Json?
+  error      String?
+  startedAt  DateTime?
+  finishedAt DateTime?
+  createdAt  DateTime   @default(now())
+  workflow   Workflow   @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  @@index([workflowId, status])
+}
+
+model Agent {
+  id             String    @id @default(cuid())
+  organizationId String
+  name           String
+  type           AgentType
+  instructions   String?
+  enabled        Boolean   @default(true)
+  config         Json?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  runs           AgentRun[]
+  @@index([organizationId, enabled])
+}
+
+model AgentRun {
+  id            String    @id @default(cuid())
+  agentId       String
+  workflowRunId String?
+  status        RunStatus @default(QUEUED)
+  input         Json?
+  output        Json?
+  error         String?
+  startedAt     DateTime?
+  finishedAt    DateTime?
+  createdAt     DateTime  @default(now())
+  agent         Agent     @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  @@index([agentId, status])
+  @@index([workflowRunId])
+}
+
+model Job {
+  id             String    @id @default(cuid())
+  organizationId String
+  type           String
+  payload        Json
+  status         JobStatus @default(QUEUED)
+  idempotencyKey String
+  attempts       Int       @default(0)
+  maxAttempts    Int       @default(5)
+  availableAt    DateTime  @default(now())
+  leaseUntil     DateTime?
+  leasedBy       String?
+  lastError      String?
+  result         Json?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  completedAt    DateTime?
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  @@unique([organizationId, idempotencyKey])
+  @@index([status, availableAt])
+  @@index([leaseUntil])
+  @@index([organizationId, createdAt])
+}
+
+model AuditEvent {
+  id             String        @id @default(cuid())
+  organizationId String
+  userId         String?
+  action         String
+  entityType     String
+  entityId       String?
+  metadata       Json?
+  createdAt      DateTime      @default(now())
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+  @@index([organizationId, createdAt])
+  @@index([organizationId, entityType, entityId])
+}

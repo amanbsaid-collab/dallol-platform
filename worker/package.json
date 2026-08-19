@@ -1,0 +1,1 @@
+{"name":"dallol-syntic-worker","private":true,"scripts":{"start":"tsx src/index.ts"},"dependencies":{"@prisma/client":"latest","tsx":"latest","typescript":"latest"},"devDependencies":{}}
