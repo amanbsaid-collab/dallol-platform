@@ -1,6 +1,12 @@
 import { db } from '@/lib/db';
+import type { Prisma } from '@prisma/client';
 
 export type ApprovalDecision = 'APPROVE' | 'REJECT';
+
+function toJsonValue(value: unknown): Prisma.InputJsonValue {
+  if (value === undefined) return null;
+  return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
+}
 
 export async function createApprovalRequest(input: {
   organizationId: string;
@@ -17,7 +23,7 @@ export async function createApprovalRequest(input: {
       metadata: {
         status: 'PENDING',
         task: input.task,
-        proposedMutation: input.proposedMutation,
+        proposedMutation: toJsonValue(input.proposedMutation),
       },
     },
   });
