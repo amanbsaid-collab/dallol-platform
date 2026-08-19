@@ -1,11 +1,9 @@
 import { db } from '@/lib/db';
-import { Prisma } from '@prisma/client';
 
 export type ApprovalDecision = 'APPROVE' | 'REJECT';
 
-function toJsonValue(value: unknown): Prisma.InputJsonValue | typeof Prisma.JsonNull {
-  if (value === null || value === undefined) return Prisma.JsonNull;
-  return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
+function toJsonValue(value: unknown): Record<string, unknown> {
+  return JSON.parse(JSON.stringify(value ?? {})) as Record<string, unknown>;
 }
 
 export async function createApprovalRequest(input: {
