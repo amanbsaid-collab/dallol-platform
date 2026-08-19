@@ -13,7 +13,7 @@ function getOpenAI(): OpenAI {
   return client;
 }
 
-const DEFAULT_MODEL = process.env.SYNTIC_MODEL ?? 'gpt-5.6-luna';
+const DEFAULT_MODEL = process.env.SYNTIC_MODEL ?? 'gpt-5';
 
 type AgentSelection = { agentId: string; reason: string; confidence: number };
 type ToolCall = { name: string; arguments: Record<string, unknown> };
