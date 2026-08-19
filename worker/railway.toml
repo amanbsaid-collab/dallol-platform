@@ -1,0 +1,9 @@
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "worker/Dockerfile"
+watchPatterns = ["/worker/**", "/prisma/**", "/package.json", "/package-lock.json"]
+
+[deploy]
+startCommand = "node --import tsx src/index.ts"
+restartPolicyType = "ALWAYS"
+restartPolicyMaxRetries = 10
