@@ -1,8 +1,8 @@
 import { db } from '@/lib/db';
 import type { Prisma } from '@prisma/client';
 
-function toJsonValue(value: unknown): Prisma.InputJsonValue {
-  if (value === undefined) return null;
+function toJsonValue(value: unknown): Prisma.InputJsonValue | Prisma.JsonNull {
+  if (value === null || value === undefined) return Prisma.JsonNull;
   return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
 }
 
