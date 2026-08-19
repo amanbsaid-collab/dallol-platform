@@ -1,1 +1,17 @@
-{"name":"dallol-syntic-worker","private":true,"scripts":{"start":"tsx src/index.ts"},"dependencies":{"@prisma/client":"latest","tsx":"latest","typescript":"latest"},"devDependencies":{}}
+﻿{
+  "name": "dallol-syntic-worker",
+  "private": true,
+  "scripts": {
+    "start": "tsx src/index.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.19.3",
+    "openai": "^5.12.2",
+    "tsx": "^4.20.3",
+    "typescript": "^5.9.2"
+  },
+  "devDependencies": {
+    "@types/node": "^24.3.0"
+  }
+}
