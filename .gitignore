@@ -1,10 +1,12 @@
 node_modules/
 .next/
 out/
-.env
-.env.local
-.env.*.local
-!.env.example
 coverage/
 *.log
 .DS_Store
+.vercel/
+.env*
+!.env.example
+tsconfig.tsbuildinfo
+.agents/
+.claude/
