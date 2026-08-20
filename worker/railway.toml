@@ -1,7 +1,6 @@
 [build]
 builder = "DOCKERFILE"
 dockerfilePath = "Dockerfile"
-watchPatterns = ["/worker/**", "/prisma/**", "/package.json", "/package-lock.json"]
 
 [deploy]
 startCommand = "node --import tsx src/index.ts"
