@@ -1,6 +1,6 @@
 [build]
 builder = "DOCKERFILE"
-dockerfilePath = "worker/Dockerfile"
+dockerfilePath = "Dockerfile"
 watchPatterns = ["/worker/**", "/prisma/**", "/package.json", "/package-lock.json"]
 
 [deploy]
