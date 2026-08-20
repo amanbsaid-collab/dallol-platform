@@ -7,13 +7,50 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum MembershipRole { OWNER ADMIN MEMBER }
-enum ContactStatus { LEAD QUALIFIED CUSTOMER LOST }
-enum DealStatus { OPEN WON LOST }
-enum WorkflowStatus { DRAFT ACTIVE PAUSED ARCHIVED }
-enum RunStatus { QUEUED RUNNING SUCCEEDED FAILED CANCELLED }
-enum AgentType { SALES SUPPORT OPERATIONS FINANCE MARKETING CUSTOM }
-enum JobStatus { QUEUED RUNNING SUCCEEDED FAILED DEAD_LETTER }
+enum MembershipRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
+enum ContactStatus {
+  LEAD
+  QUALIFIED
+  CUSTOMER
+  LOST
+}
+enum DealStatus {
+  OPEN
+  WON
+  LOST
+}
+enum WorkflowStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  ARCHIVED
+}
+enum RunStatus {
+  QUEUED
+  RUNNING
+  SUCCEEDED
+  FAILED
+  CANCELLED
+}
+enum AgentType {
+  SALES
+  SUPPORT
+  OPERATIONS
+  FINANCE
+  MARKETING
+  CUSTOM
+}
+enum JobStatus {
+  QUEUED
+  RUNNING
+  SUCCEEDED
+  FAILED
+  DEAD_LETTER
+}
 
 model Organization {
   id String @id @default(cuid())
