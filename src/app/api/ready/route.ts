@@ -2,31 +2,24 @@ import { db } from '@/lib/db';
 import { NextResponse } from 'next/server';
 
 export async function GET() {
-  const checks: Record<string, string> = {
-    database: 'down',
-    openai: 'configured',
-  };
-
   try {
     await db.$queryRaw`SELECT 1`;
-    checks.database = 'up';
-  } catch {
-    checks.database = 'down';
-  }
 
-  const databaseReady = checks.database === 'up';
-  const openAIReady = Boolean(process.env.OPENAI_API_KEY);
-  checks.openai = openAIReady ? 'configured' : 'missing';
-
-  const ready = databaseReady && openAIReady;
-
-  return NextResponse.json(
-    {
-      ok: ready,
+    return NextResponse.json({
+      ok: true,
       service: 'dallol-platform',
-      checks,
+      checks: { database: 'up' },
       timestamp: new Date().toISOString(),
-    },
-    { status: ready ? 200 : 503 },
-  );
+    });
+  } catch {
+    return NextResponse.json(
+      {
+        ok: false,
+        service: 'dallol-platform',
+        checks: { database: 'down' },
+        timestamp: new Date().toISOString(),
+      },
+      { status: 503 },
+    );
+  }
 }
