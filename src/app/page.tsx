@@ -4,8 +4,13 @@ export default function Home() {
   return (
     <main>
       <h1>Dallol Platform</h1>
-      <p>Production foundation initialized.</p>
-      <p><Link href="/api/health">System health</Link></p>
+      <p>Production platform foundation.</p>
+      <nav style={{ display: 'flex', gap: 16 }}>
+        <Link href="/dashboard">Dashboard</Link>
+        <Link href="/login">Sign in</Link>
+        <Link href="/register">Create account</Link>
+        <Link href="/api/health">System health</Link>
+      </nav>
     </main>
   );
 }
