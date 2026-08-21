@@ -15,18 +15,36 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   if (workflow.status !== 'ACTIVE') return NextResponse.json({ error: 'Workflow must be ACTIVE' }, { status: 409 });
 
   const body = await request.json().catch(() => ({}));
+  const idempotencyKey = request.headers.get('idempotency-key')?.trim();
   const run = await db.workflowRun.create({
     data: { workflowId: workflow.id, status: 'QUEUED', input: body },
   });
 
-  await writeAuditEvent({
-    organizationId: membership.organizationId,
-    userId: membership.userId,
-    action: 'queued',
-    entityType: 'workflow_run',
-    entityId: run.id,
-    metadata: { workflowId: workflow.id },
-  });
+  try {
+    const job = await db.job.create({
+      data: {
+        organizationId: membership.organizationId,
+        type: 'workflow.execute',
+        payload: { workflowId: workflow.id, runId: run.id, input: body },
+        idempotencyKey: idempotencyKey || `workflow-run:${run.id}`,
+      },
+    });
 
-  return NextResponse.json({ run }, { status: 202 });
+    await writeAuditEvent({
+      organizationId: membership.organizationId,
+      userId: membership.userId,
+      action: 'queued',
+      entityType: 'workflow_run',
+      entityId: run.id,
+      metadata: { workflowId: workflow.id, jobId: job.id },
+    });
+
+    return NextResponse.json({ run, job }, { status: 202 });
+  } catch (error) {
+    await db.workflowRun.update({
+      where: { id: run.id },
+      data: { status: 'FAILED', error: error instanceof Error ? error.message : 'JOB_ENQUEUE_FAILED', finishedAt: new Date() },
+    });
+    throw error;
+  }
 }
