@@ -21,6 +21,30 @@ function asRecord(value: Prisma.JsonValue): Record<string, unknown> {
     : {};
 }
 
+function toJsonValue(value: unknown): Prisma.InputJsonValue {
+  return JSON.parse(JSON.stringify(value ?? {})) as Prisma.InputJsonValue;
+}
+
+function getPath(input: unknown, path: string): unknown {
+  return path.split('.').reduce<unknown>((value, key) => {
+    if (!value || typeof value !== 'object') return undefined;
+    return (value as Record<string, unknown>)[key];
+  }, input);
+}
+
+function conditionMatches(config: Record<string, unknown>, input: unknown) {
+  const field = typeof config.field === 'string' ? config.field : '';
+  const operator = typeof config.operator === 'string' ? config.operator : 'equals';
+  const expected = config.value;
+  const actual = getPath(input, field);
+  switch (operator) {
+    case 'not_equals': return actual !== expected;
+    case 'exists': return actual !== undefined && actual !== null;
+    case 'contains': return typeof actual === 'string' && actual.includes(String(expected));
+    default: return actual === expected;
+  }
+}
+
 async function executeCrmContact(job: { organizationId: string; payload: Prisma.JsonValue }) {
   const payload = asRecord(job.payload);
   const input = asRecord(payload.input as Prisma.JsonValue);
@@ -42,6 +66,86 @@ async function executeCrmContact(job: { organizationId: string; payload: Prisma.
     },
   });
   return { contactId: contact.id, created: true };
+}
+
+async function executeWorkflow(job: { organizationId: string; payload: Prisma.JsonValue }) {
+  const payload = asRecord(job.payload);
+  const workflowId = typeof payload.workflowId === 'string' ? payload.workflowId : '';
+  const runId = typeof payload.runId === 'string' ? payload.runId : '';
+  const input = payload.input ?? {};
+  if (!workflowId || !runId) throw new Error('WORKFLOW_JOB_PAYLOAD_INVALID');
+
+  const workflow = await db.workflow.findFirst({ where: { id: workflowId, organizationId: job.organizationId } });
+  if (!workflow) throw new Error('WORKFLOW_NOT_FOUND');
+  if (workflow.status !== 'ACTIVE') throw new Error('WORKFLOW_NOT_ACTIVE');
+
+  const run = await db.workflowRun.findFirst({ where: { id: runId, workflowId } });
+  if (!run) throw new Error('WORKFLOW_RUN_NOT_FOUND');
+
+  await db.workflowRun.update({
+    where: { id: run.id },
+    data: { status: 'RUNNING', startedAt: new Date(), input: toJsonValue(input), error: null },
+  });
+
+  try {
+    const definition = workflow.definition as { nodes?: Array<{ id?: string; type: 'condition' | 'agent' | 'action' | 'end'; config?: Record<string, unknown> }> };
+    const results: Prisma.InputJsonValue[] = [];
+
+    for (const node of definition.nodes ?? []) {
+      if (node.type === 'condition' && !conditionMatches(node.config ?? {}, input)) {
+        results.push(toJsonValue({ nodeId: node.id, skipped: true, reason: 'condition_failed' }));
+        continue;
+      }
+
+      if (node.type === 'agent') {
+        const agentId = typeof node.config?.agentId === 'string' ? node.config.agentId : '';
+        if (!agentId) throw new Error('AGENT_ID_REQUIRED');
+        const agent = await db.agent.findFirst({ where: { id: agentId, organizationId: job.organizationId, enabled: true } });
+        if (!agent) throw new Error('AGENT_NOT_AVAILABLE');
+        const agentRun = await db.agentRun.create({
+          data: {
+            agentId: agent.id,
+            workflowRunId: run.id,
+            status: 'SUCCEEDED',
+            input: toJsonValue(input),
+            output: toJsonValue({ accepted: true, agentType: agent.type }),
+            startedAt: new Date(),
+            finishedAt: new Date(),
+          },
+        });
+        results.push(toJsonValue({ nodeId: node.id, agentRunId: agentRun.id, status: 'SUCCEEDED' }));
+        continue;
+      }
+
+      results.push(toJsonValue({ nodeId: node.id, status: node.type === 'action' ? 'accepted' : 'completed' }));
+    }
+
+    const output = toJsonValue({ results });
+    await db.workflowRun.update({ where: { id: run.id }, data: { status: 'SUCCEEDED', output, finishedAt: new Date() } });
+    await db.auditEvent.create({
+      data: {
+        organizationId: job.organizationId,
+        action: 'workflow.executed',
+        entityType: 'WorkflowRun',
+        entityId: run.id,
+        metadata: toJsonValue({ workflowId, jobId: job }),
+      },
+    });
+    return { runId: run.id, status: 'SUCCEEDED', output };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'WORKFLOW_EXECUTION_FAILED';
+    await db.workflowRun.update({ where: { id: run.id }, data: { status: 'FAILED', error: message, finishedAt: new Date() } });
+    await db.auditEvent.create({
+      data: {
+        organizationId: job.organizationId,
+        action: 'workflow.failed',
+        entityType: 'WorkflowRun',
+        entityId: run.id,
+        metadata: toJsonValue({ workflowId, error: message }),
+      },
+    });
+    throw error;
+  }
 }
 
 async function executeSyntic(job: { organizationId: string; payload: Prisma.JsonValue }) {
@@ -74,6 +178,7 @@ async function executeSyntic(job: { organizationId: string; payload: Prisma.Json
 }
 
 async function executeJob(job: { id: string; type: string; organizationId: string; payload: Prisma.JsonValue }) {
+  if (job.type === 'workflow.execute') return executeWorkflow(job);
   if (job.type === 'syntic.workflow.execute') return executeSyntic(job);
   if (job.type === 'crm.create_contact') return executeCrmContact(job);
   if (job.type === 'workflow') return { accepted: true, type: job.type };
