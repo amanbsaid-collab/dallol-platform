@@ -16,12 +16,26 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
 
   const body = await request.json().catch(() => ({}));
   const idempotencyKey = request.headers.get('idempotency-key')?.trim();
-  const run = await db.workflowRun.create({
-    data: { workflowId: workflow.id, status: 'QUEUED', input: body },
-  });
 
-  try {
-    const job = await db.job.create({
+  if (idempotencyKey) {
+    const existingJob = await db.job.findUnique({
+      where: { organizationId_idempotencyKey: { organizationId: membership.organizationId, idempotencyKey } },
+    });
+    if (existingJob) {
+      const payload = existingJob.payload && typeof existingJob.payload === 'object'
+        ? existingJob.payload as { workflowId?: string; runId?: string }
+        : {};
+      if (payload.workflowId !== workflow.id) return NextResponse.json({ error: 'Idempotency key already belongs to another workflow' }, { status: 409 });
+      const run = payload.runId ? await db.workflowRun.findUnique({ where: { id: payload.runId } }) : null;
+      return NextResponse.json({ run, job: existingJob, replayed: true }, { status: 202 });
+    }
+  }
+
+  const result = await db.$transaction(async (tx) => {
+    const run = await tx.workflowRun.create({
+      data: { workflowId: workflow.id, status: 'QUEUED', input: body },
+    });
+    const job = await tx.job.create({
       data: {
         organizationId: membership.organizationId,
         type: 'workflow.execute',
@@ -29,22 +43,17 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         idempotencyKey: idempotencyKey || `workflow-run:${run.id}`,
       },
     });
+    return { run, job };
+  });
 
-    await writeAuditEvent({
-      organizationId: membership.organizationId,
-      userId: membership.userId,
-      action: 'queued',
-      entityType: 'workflow_run',
-      entityId: run.id,
-      metadata: { workflowId: workflow.id, jobId: job.id },
-    });
+  await writeAuditEvent({
+    organizationId: membership.organizationId,
+    userId: membership.userId,
+    action: 'queued',
+    entityType: 'workflow_run',
+    entityId: result.run.id,
+    metadata: { workflowId: workflow.id, jobId: result.job.id },
+  });
 
-    return NextResponse.json({ run, job }, { status: 202 });
-  } catch (error) {
-    await db.workflowRun.update({
-      where: { id: run.id },
-      data: { status: 'FAILED', error: error instanceof Error ? error.message : 'JOB_ENQUEUE_FAILED', finishedAt: new Date() },
-    });
-    throw error;
-  }
+  return NextResponse.json(result, { status: 202 });
 }
