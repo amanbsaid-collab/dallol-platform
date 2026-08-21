@@ -22,12 +22,15 @@ export async function POST(request: Request) {
     if (!task) return NextResponse.json({ error: 'TASK_REQUIRED' }, { status: 400 });
 
     const idempotencyKey = `syntic:${stableKey(membership.organizationId, task, context)}`;
+    const payload = JSON.parse(JSON.stringify({
+      input: { task, context, userId: membership.userId },
+    }));
     const job = await db.job.upsert({
       where: { organizationId_idempotencyKey: { organizationId: membership.organizationId, idempotencyKey } },
       create: {
         organizationId: membership.organizationId,
         type: 'syntic.workflow.execute',
-        payload: { input: { task, context, userId: membership.userId } },
+        payload,
         idempotencyKey,
       },
       update: {},
