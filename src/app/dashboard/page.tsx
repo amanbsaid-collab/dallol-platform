@@ -14,7 +14,7 @@ export default async function DashboardPage() {
         <p>Signed in as {membership.userId} · {membership.role}</p>
       </header>
       <section style={{ display: 'grid', gap: 16, marginTop: 32 }}>
-        <article><h2>CRM</h2><p>Manage contacts and pipelines.</p><Link href="/api/crm/contacts">Contacts API</Link></article>
+        <article><h2>CRM</h2><p>Manage contacts, pipeline stages and deal lifecycle.</p><Link href="/dashboard/crm">Open CRM workspace</Link></article>
         <article><h2>Syntic</h2><p>AI workflow orchestration is connected to the production foundation.</p><Link href="/api/health">System health</Link></article>
         <article><h2>Production</h2><p>Tenant-scoped authentication, persistence, audit events and background jobs are enabled.</p></article>
       </section>
