@@ -4,7 +4,7 @@ services:
     runtime: node
     plan: free
     region: oregon
-    buildCommand: npm ci && npm run build
+    buildCommand: npm install && npm run build
     startCommand: npm run db:deploy && npm start -- -H 0.0.0.0 -p $PORT
     healthCheckPath: /api/ready
     autoDeploy: true
