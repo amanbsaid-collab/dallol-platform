@@ -36,14 +36,17 @@ function conditionMatches(config: Record<string, unknown>, input: unknown) {
   }
 }
 
-export async function executeWorkflow(workflowId: string, input: unknown) {
+export async function executeWorkflow(workflowId: string, input: unknown, existingRunId?: string) {
   const workflow = await db.workflow.findUnique({ where: { id: workflowId } });
   if (!workflow) throw new Error('WORKFLOW_NOT_FOUND');
   if (workflow.status !== 'ACTIVE') throw new Error('WORKFLOW_NOT_ACTIVE');
 
-  const run = await db.workflowRun.create({
-    data: { workflowId, status: 'RUNNING', input: toJsonValue(input) },
-  });
+  const run = existingRunId
+    ? await db.workflowRun.findFirst({ where: { id: existingRunId, workflowId } })
+    : await db.workflowRun.create({ data: { workflowId, status: 'RUNNING', input: toJsonValue(input) } });
+  if (!run) throw new Error('WORKFLOW_RUN_NOT_FOUND');
+
+  await db.workflowRun.update({ where: { id: run.id }, data: { status: 'RUNNING', startedAt: new Date(), input: toJsonValue(input), error: null } });
 
   try {
     const definition = workflow.definition as WorkflowDefinition;
@@ -68,6 +71,8 @@ export async function executeWorkflow(workflowId: string, input: unknown) {
             status: 'SUCCEEDED',
             input: toJsonValue(input),
             output: toJsonValue({ accepted: true, agentType: agent.type }),
+            startedAt: new Date(),
+            finishedAt: new Date(),
           },
         });
         results.push(toJsonValue({ nodeId: node.id, agentRunId: agentRun.id, status: 'SUCCEEDED' }));

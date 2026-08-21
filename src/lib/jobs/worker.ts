@@ -5,8 +5,12 @@ export async function processWorkflowJob(input: { organizationId: string; jobId:
   const attempt = input.attempt ?? 1;
   const job = await claimNextJob(`workflow-${input.organizationId}`);
   if (!job || job.id !== input.jobId) throw new Error('JOB_NOT_CLAIMED');
+
   try {
-    const result = await executeWorkflow(input.workflowId, input.payload);
+    const payload = input.payload && typeof input.payload === 'object'
+      ? input.payload as { input?: unknown; runId?: string }
+      : { input: input.payload };
+    const result = await executeWorkflow(input.workflowId, payload.input, payload.runId);
     await completeJob(input.jobId, result);
     return result;
   } catch (error) {
