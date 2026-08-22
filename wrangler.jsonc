@@ -9,6 +9,10 @@
     {
       "pattern": "dallolecosystem.com",
       "custom_domain": true
+    },
+    {
+      "pattern": "www.dallolecosystem.com",
+      "custom_domain": true
     }
   ],
   "assets": {
