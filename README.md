@@ -26,3 +26,5 @@ Dallol Business Operating System — Next.js application, AI workforce, CRM, aut
 Authentication is isolated behind `src/lib/auth.ts`. The application can adopt Auth.js, a managed identity provider, or a future Dallol-native identity service without coupling CRM/workflow code to the provider.
 
 Secrets are never committed. `.env.example` contains placeholders only.
+
+<!-- Cloudflare Git-build trigger: 2026-08-22 -->
