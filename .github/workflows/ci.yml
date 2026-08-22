@@ -2,9 +2,9 @@ name: Dallol CI
 
 on:
   push:
-    branches: [main-Dallol-1st, 'feature/**']
+    branches: [main-Dallol-1st, cloudflare-free-deployment, 'feature/**']
   pull_request:
-    branches: [main-Dallol-1st]
+    branches: [main-Dallol-1st, cloudflare-free-deployment]
 
 jobs:
   quality:
@@ -33,6 +33,8 @@ jobs:
       - run: npm run lint
       - run: npm run test
       - run: npm run build
+      - name: Build Cloudflare Worker adapter
+        run: npm run preview
       - name: Typecheck production worker
         working-directory: worker
         run: npm install && npm run typecheck

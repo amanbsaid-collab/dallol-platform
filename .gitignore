@@ -1,6 +1,8 @@
 node_modules/
 .next/
 out/
+.open-next/
+.wrangler/
 coverage/
 *.log
 .DS_Store
